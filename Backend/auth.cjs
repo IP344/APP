@@ -106,16 +106,17 @@ function slugify(value) {
 
 async function syncAuthUser(claims) {
   const auth0Sub = String(claims.sub);
-  const email = claims.email ? String(claims.email).trim().toLowerCase() : null;
-  const name = claims.name || claims.nickname || email || 'Lethem User';
+  const normalizedEmail = claims.email ? String(claims.email).trim().toLowerCase() : '';
+  const email = normalizedEmail || null;
+  const name = String(claims.name || claims.nickname || email || 'Lethem User').trim() || 'Lethem User';
   const pictureUrl = claims.picture || null;
   const emailVerified = Boolean(claims.email_verified);
   const { rows } = await query(
     `INSERT INTO users (id, auth0_sub, email, name, picture_url, email_verified, account_status, last_seen_at, login_count, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW(), 1, NOW())
      ON CONFLICT (auth0_sub) DO UPDATE SET
-       email = EXCLUDED.email,
-       name = COALESCE(NULLIF(users.name, ''), EXCLUDED.name),
+       email = COALESCE(NULLIF(EXCLUDED.email, ''), NULLIF(users.email, ''), users.email),
+       name = COALESCE(NULLIF(users.name, ''), NULLIF(EXCLUDED.name, ''), 'Lethem User'),
        picture_url = EXCLUDED.picture_url,
        email_verified = EXCLUDED.email_verified,
        account_status = 'active',
@@ -123,7 +124,7 @@ async function syncAuthUser(claims) {
        last_seen_at = NOW(),
        login_count = users.login_count + 1,
        updated_at = NOW()
-     RETURNING id, auth0_sub, email, name, picture_url, email_verified, account_status`,
+     RETURNING id, auth0_sub, email, name, picture_url, email_verified, account_status, onboarding_completed_at`,
     [randomUUID(), auth0Sub, email, name, pictureUrl, emailVerified],
   );
   const user = rows[0];
