@@ -92,6 +92,7 @@ async function ensureAuthSchema() {
       last_seen_at TIMESTAMPTZ,
       deleted_at TIMESTAMPTZ,
       login_count INTEGER NOT NULL DEFAULT 0,
+      onboarding_completed_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -121,6 +122,7 @@ async function ensureAuthSchema() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed_at TIMESTAMPTZ;
     ALTER TABLE users DROP CONSTRAINT IF EXISTS users_account_status_check;
     ALTER TABLE users ADD CONSTRAINT users_account_status_check CHECK (account_status IN ('active','deleted'));
 

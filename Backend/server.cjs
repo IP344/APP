@@ -353,24 +353,25 @@ fastify.get('/api/me', async (req, reply) => {
 });
 
 fastify.patch('/api/me', {
-  schema: { body: { type: 'object', properties: { name: { type: 'string' }, workspaceName: { type: 'string' } } } },
+  schema: { body: { type: 'object', properties: { name: { type: 'string' }, workspaceName: { type: 'string' }, onboardingCompleted: { type: 'boolean' } } } },
 }, async (req, reply) => {
   const auth = await requireOrgRole(req, reply, ['owner', 'admin']); if (!auth) return;
   const body = req.body || {};
   const hasName = Object.prototype.hasOwnProperty.call(body, 'name');
   const hasWorkspaceName = Object.prototype.hasOwnProperty.call(body, 'workspaceName');
-  const name = hasName ? String(body.name || '').trim() : auth.user.name;
-  const workspaceName = hasWorkspaceName ? String(body.workspaceName || '').trim() : auth.organization.name;
-  if (hasName && !name) return reply.code(400).send(ERR('VALIDATION_ERROR', 'name required'));
-  if (hasWorkspaceName && !workspaceName) return reply.code(400).send(ERR('VALIDATION_ERROR', 'workspace name required'));
-  if (!hasName && !hasWorkspaceName) return reply.code(400).send(ERR('VALIDATION_ERROR', 'nothing to update'));
+  const hasOnboardingCompleted = Object.prototype.hasOwnProperty.call(body, 'onboardingCompleted');
+  const name = hasName ? (String(body.name || '').trim() || 'Lethem User') : auth.user.name;
+  const workspaceName = hasWorkspaceName ? (String(body.workspaceName || '').trim() || 'My Workspace') : auth.organization.name;
+  if (!hasName && !hasWorkspaceName && !hasOnboardingCompleted) return reply.code(400).send(ERR('VALIDATION_ERROR', 'nothing to update'));
 
   const { rows: userRows } = hasName
     ? await query(
-      `UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, auth0_sub, email, name, picture_url`,
-      [name, auth.user.id],
+      `UPDATE users SET name = $1, onboarding_completed_at = CASE WHEN $3 THEN COALESCE(onboarding_completed_at, NOW()) ELSE onboarding_completed_at END, updated_at = NOW() WHERE id = $2 RETURNING id, auth0_sub, email, name, picture_url, onboarding_completed_at`,
+      [name, auth.user.id, Boolean(body.onboardingCompleted)],
     )
-    : await query(`SELECT id, auth0_sub, email, name, picture_url FROM users WHERE id = $1`, [auth.user.id]);
+    : hasOnboardingCompleted
+      ? await query(`UPDATE users SET onboarding_completed_at = COALESCE(onboarding_completed_at, NOW()), updated_at = NOW() WHERE id = $1 RETURNING id, auth0_sub, email, name, picture_url, onboarding_completed_at`, [auth.user.id])
+      : await query(`SELECT id, auth0_sub, email, name, picture_url, onboarding_completed_at FROM users WHERE id = $1`, [auth.user.id]);
   const { rows: orgRows } = hasWorkspaceName
     ? await query(
       `UPDATE organizations SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, slug, plan, subscription_status, razorpay_subscription_id`,
